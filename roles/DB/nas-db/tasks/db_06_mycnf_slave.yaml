@@ -1,0 +1,16 @@
+---
+- name: MySQL Slave 전용 my.cnf 옵션 설정
+  lineinfile:
+    path: /etc/my.cnf
+    insertafter: '^\[mysqld\]'
+    regexp: '^[[:space:]]*{{ item.key }}[[:space:]]*='
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ mysql_slave_options }}"
+  register: slave_conf
+
+- name: MySQL Slave 설정 변경 시 재시작
+  service:
+    name: mysqld
+    state: restarted
+  when: slave_conf is changed
+

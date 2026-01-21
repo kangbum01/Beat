@@ -1,0 +1,75 @@
+---
+- name: NFS 기본 디렉터리 생성
+  file:
+    path: "{{ nfs_mount_path }}"
+    state: directory
+    owner: "{{ nfs_owner_user }}"
+    group: "{{ nfs_owner_user }}"
+    mode: '0755'
+
+- name: NFS 서버 패키지 설치
+  yum:
+    name:
+      - nfs-utils
+      - rpcbind
+    state: present
+
+- name: rpcbind 서비스 시작 및 활성화
+  systemd:
+    name: rpcbind
+    state: started
+    enabled: yes
+
+- name: /etc/exports 설정 파일 구성
+  template:
+    src: exports.j2
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: NFS export 설정 적용
+  command: exportfs -rav
+
+- name: NFS 서버 서비스 시작 및 활성화
+  systemd:
+    name: nfs-server
+    state: started
+    enabled: yes
+
+- name: firewalld 서비스 시작 및 활성화
+  systemd:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: NFS 관련 방화벽 포트 개방
+  firewalld:
+    service: "{{ item }}"
+    permanent: yes
+    state: enabled
+  loop:
+    - nfs
+    - rpc-bind
+    - mountd
+
+- name: 방화벽 설정 재적용
+  command: firewall-cmd --reload
+
+- name: 서버에 PC별 디렉터리 생성
+  file:
+    path: "{{ nfs_mount_path }}/{{ item.value }}"
+    state: directory
+    owner: "{{ nfs_owner_user }}"
+    group: "{{ nfs_owner_user }}"
+    mode: '0755'
+  with_dict: "{{ pc_map }}"
+
+- name: 결과 저장용 디렉터리 생성
+  file:
+    path: "{{ nfs_mount_path }}/result"
+    state: directory
+    owner: "{{ nfs_owner_user }}"
+    group: "{{ nfs_owner_user }}"
+    mode: '0755'
+

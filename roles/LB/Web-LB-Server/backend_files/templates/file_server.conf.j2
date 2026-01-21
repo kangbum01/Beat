@@ -1,0 +1,16 @@
+server {
+    listen 8080;
+    
+    # [수정] 골치 아픈 홈 디렉토리 대신, 표준 웹 디렉토리 사용
+    root /usr/share/nginx/html/music-project;
+
+    location / {
+        autoindex on;
+
+        # [추가됨] 브라우저 캐시 박멸 3종 세트
+        # "이 페이지와 파일들은 절대 저장하지 말고, 매번 서버에서 새로 받아와라!"
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+}

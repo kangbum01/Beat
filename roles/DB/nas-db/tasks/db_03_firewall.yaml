@@ -1,0 +1,14 @@
+---
+- name: firewalld 서비스 실행 및 부팅 시 자동 시작
+  service:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: MySQL 포트(3306/tcp) 방화벽 허용
+  firewalld:
+    port: 3306/tcp
+    permanent: yes
+    state: enabled
+    immediate: yes
+

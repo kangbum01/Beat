@@ -1,0 +1,30 @@
+---
+- name: 마스터 MySQL 포트(3306) 대기
+  wait_for:
+    host: "{{ db_master_ip }}"
+    port: 3306
+    timeout: "{{ mysql_slave_check_timeout }}"
+- name: 슬레이브 중지 및 초기화
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "
+    STOP SLAVE;
+    RESET SLAVE ALL;"
+
+- name: GTID 기반 마스터 정보 설정 및 슬레이브 시작
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "
+    CHANGE MASTER TO
+      MASTER_HOST='{{ db_master_ip }}',
+      MASTER_USER='{{ mysql_repl_user }}',
+      MASTER_PASSWORD='{{ mysql_repl_password }}',
+      MASTER_AUTO_POSITION=1;
+    START SLAVE;"
+
+- name: 슬레이브 복제 상태 확인
+  shell: mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "SHOW SLAVE STATUS\G"
+  register: slave_status
+  failed_when: >
+    'Slave_IO_Running: Yes' not in slave_status.stdout or
+    'Slave_SQL_Running: Yes' not in slave_status.stdout
+  changed_when: false
+

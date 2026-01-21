@@ -1,0 +1,8 @@
+# 플레이북에서는 handlers: 사용이 가능하지만
+# role에서는 따로 handlers 폴더를 생성해야 함
+---
+- name: Restart Service
+  ansible.builtin.systemd:
+    name: music_analyzer
+    state: restarted
+    daemon_reload: yes

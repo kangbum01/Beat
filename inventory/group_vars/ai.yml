@@ -1,0 +1,39 @@
+---
+# 프로젝트 경로 설정
+analyzer_root: "/home/{{ ansible_user }}/music_analyzer"
+web_static_path: "/home/{{ ansible_user }}/project/web"
+analyzer_git_path: "/home/{{ ansible_user_id }}/project"
+nas_dir: "/mnt/NAS/result/"
+
+
+# git_install에서 사용
+ansible_admin_dir: "/home/ansible-admin"
+project_dir: "{{ ansible_admin_dir }}/project"
+git_user_email: "teammate@music.project"
+git_server_ip: "10.4.3.10"
+
+# 인프라 정보 
+load_balancer_ip: "10.4.2.10"  
+web_root_path: "/usr/share/nginx/html/music-project"
+
+# 실행 및 네트워크 설정
+api_port: 8000
+python_path: "/usr/bin/python3"
+
+# 설치 패키지 목록
+system_packages:
+  - dnf-plugins-core
+  - epel-release
+  - python3-pip
+  - ffmpeg
+  - libsndfile
+  - atlas-devel
+  - gcc-c++
+
+python_packages:
+  - torch
+  - fastapi
+  - uvicorn
+  - librosa
+  - python-multipart  
+  - "numpy<2.0"

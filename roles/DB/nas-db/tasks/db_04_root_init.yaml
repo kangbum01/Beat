@@ -1,0 +1,84 @@
+---
+# roles/nas_db/tasks/db_04_root_init.yaml
+# MySQL 설치 후 초기 설정 (root 비밀번호 설정, 플러그인 제거, 초기 DB 정리)
+
+- name: PyMySQL 패키지 설치
+  package:
+    name: python3-PyMySQL
+    state: present
+
+
+- name: root password marker 확인
+  stat:
+    path: "{{ mysql_datadir }}/.root_pass_set"
+  register: root_pass_marker
+
+- name: MySQL root 비밀번호 설정 (최초 1회만)
+  community.mysql.mysql_user:
+    name: root
+    host: localhost
+    password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+    check_implicit_admin: true
+  failed_when: false
+  when:
+    - "'db_master' in group_names or 'db_slave' in group_names"
+    - not root_pass_marker.stat.exists
+
+- name: root password marker 생성
+  file:
+    path: "{{ mysql_datadir }}/.root_pass_set"
+    state: touch
+  when:
+    - "'db_master' in group_names or 'db_slave' in group_names"
+    - not root_pass_marker.stat.exists
+
+- name: validate_password 플러그인 존재 여부 확인
+  community.mysql.mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+    query: |
+      SELECT COUNT(*) AS cnt
+      FROM information_schema.PLUGINS
+      WHERE PLUGIN_NAME = 'validate_password'
+  register: validate_plugin_count
+  changed_when: false
+  failed_when: false
+
+- name: validate_password 플러그인 제거
+  community.mysql.mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+    query: "UNINSTALL PLUGIN validate_password;"
+  when: validate_plugin_count.query_result[0][0].cnt | int > 0
+  failed_when: false
+
+- name: 익명 사용자 계정 삭제
+  community.mysql.mysql_user:
+    name: ""
+    host_all: true
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+  failed_when: false
+
+- name: test 데이터베이스 삭제
+  community.mysql.mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+  failed_when: false
+
+- name: 권한 정보 재적용
+  community.mysql.mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_datadir }}/mysql.sock"
+    query: "FLUSH PRIVILEGES;"
+  changed_when: false
+  failed_when: false

@@ -1,0 +1,11 @@
+---
+- name: MySQL Replication 사용자 생성/유지
+  community.mysql.mysql_user:
+    name: "{{ mysql_repl_user }}"
+    host: "%"
+    password: "{{ mysql_repl_password }}"
+    priv: "{{ mysql_repl_privileges }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+

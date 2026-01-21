@@ -1,0 +1,48 @@
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+include /usr/share/nginx/modules/*.conf;
+
+events { worker_connections 1024; }
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+    
+    # 업로드 용량 제한 해제
+    client_max_body_size 100M;
+
+    server {
+        listen       80;
+        server_name  _;
+        root         /usr/share/nginx/html;
+
+        # 1. [핵심] JS가 요청하는 주소(/music-project/)와 이름 통일
+        location /music-project/ {
+            # Jinja2 변수로 LB 서버 IP를 넣거나, 지금처럼 고정 IP 사용
+            # [주의] 끝에 '/' 필수 (경로 떼고 파일명만 LB 파일서버로 전달)
+            proxy_pass http://10.4.2.10:8080/;
+            proxy_set_header Host $host;
+
+            # ★ [추가됨] 브라우저 캐시 박멸 설정 ★
+            # "이 경로로 받아오는 파일들은 절대 저장하지 마!"
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Pragma "no-cache";
+            add_header Expires "0";
+        }
+
+        # 2. 업로드는 AI 서버로 (기존 유지)
+        location /upload {
+            proxy_pass http://10.4.1.11:8000/upload;
+            proxy_set_header Host $host;
+        }
+        
+        # 3. [선택] HTML 파일도 캐시 안 남게 설정 (개발 중에 유용)
+        location ~* \.html$ {
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+        }
+    }
+}

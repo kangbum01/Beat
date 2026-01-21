@@ -1,0 +1,52 @@
+---
+# roles/nas_db/tasks/nfs_02_client.yaml
+- name: 기존 NFS 마운트 상태 확인
+  command: mountpoint -q "{{ nfs_mount_path }}"
+  register: mount_check
+  ignore_errors: yes
+  become: yes
+
+- name: 기존 NFS 마운트 해제 (lazy)
+  command: umount --lazy "{{ nfs_mount_path }}"
+  when: mount_check.rc == 0
+  ignore_errors: yes
+  become: yes
+
+- name: 기존 파일/디렉토리 삭제
+  file:
+    path: "{{ nfs_mount_path }}"
+    state: absent
+  ignore_errors: yes
+  become: yes
+
+- name: 새 디렉토리 생성
+  file:
+    path: "{{ nfs_mount_path }}"
+    state: directory
+    owner: "{{ nfs_owner_user }}"
+    group: "{{ nfs_owner_user }}"
+    mode: '0755'
+  become: yes
+
+- name: NFS 클라이언트 패키지 설치
+  yum:
+    name: nfs-utils
+    state: present
+  become: yes
+
+- name: NFS 공유 마운트
+  mount:
+    path: "{{ nfs_mount_path }}"
+    src: "{{ hostvars[groups['db_nfs'][0]].ansible_host }}:{{ nfs_mount_path }}"
+    fstype: nfs
+    opts: hard,intr
+    state: mounted
+  become: yes
+
+- name: fstab에 NFS 자동 마운트 등록
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^.*:/mnt/NAS\s+/mnt/NAS\s+nfs'
+    line: "{{ hostvars[groups['db_nfs'][0]].ansible_host }}:{{ nfs_mount_path }}  {{ nfs_mount_path }}  nfs  defaults  0  0"
+    create: yes
+  become: yes

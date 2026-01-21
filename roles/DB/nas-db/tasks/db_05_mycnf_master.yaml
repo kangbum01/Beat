@@ -1,0 +1,16 @@
+---
+- name: MySQL Master 전용 my.cnf 옵션 설정
+  lineinfile:
+    path: /etc/my.cnf
+    insertafter: '^\[mysqld\]'
+    regexp: '^[[:space:]]*{{ item.key }}[[:space:]]*='
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ mysql_master_options }}"
+  register: master_conf
+
+- name: MySQL Master 설정 변경 시 재시작
+  service:
+    name: mysqld
+    state: restarted
+  when: master_conf is changed
+

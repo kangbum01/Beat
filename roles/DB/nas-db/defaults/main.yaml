@@ -1,0 +1,92 @@
+---
+# ##############
+# NFS
+# ##############
+
+# 공유폴더
+nfs_mount_path: /mnt/NAS
+
+nfs_owner_user: ansible-admin
+
+
+pc_map:
+  PC1: PC1_ai
+  PC2: PC2_web
+  PC3: PC3_cicd
+  PC4: PC4_db
+  PC5: PC5_monitoring
+
+# ##############
+# DB
+# ##############
+
+# MySQL 설치 관련 변수
+mysql_package_name: "mysql-community-server"
+mysql_service_name: "mysqld"
+mysql_repo_name: "mysql80-community"
+mysql_repo_description: "MySQL 8.0 Community Server"
+mysql_repo_baseurl: "https://repo.mysql.com/yum/mysql-8.0-community/el/9/x86_64/"
+mysql_gpg_keys:
+  - "https://repo.mysql.com/RPM-GPG-KEY-mysql-2022"
+  - "https://repo.mysql.com/RPM-GPG-KEY-mysql-2023"
+
+#1)
+mysql_root_password: "Soldesk1."
+
+#2)
+## MySQL 공통 설정
+mysql_datadir: /mnt/new_disk/mysql
+
+#3)
+# MySQL Master 전용 설정
+mysql_master_options:
+  - { key: "server-id", value: "1" }
+  - { key: "event_scheduler", value: "ON" }
+  - { key: "max_allowed_packet", value: "3G" }
+
+#4)
+# MySQL Slave 전용 설정
+mysql_slave_options:
+  - { key: "server-id", value: "2" }
+  - { key: "read_only", value: "ON" }
+  - { key: "super_read_only", value: "ON" }
+
+#5)
+# Replication 계정 설정 (Master)
+mysql_repl_user: repl
+mysql_repl_password: replpass
+mysql_repl_privileges: "*.*:REPLICATION SLAVE"
+
+#6)
+# Replication (GTID)
+db_master_ip: "10.4.4.11"
+mysql_slave_check_timeout: 30
+
+
+# ##############
+# db_table.yaml DB 테이블 관련
+# ##############
+
+db_name: nas_backup
+
+backup_tables:
+  - PC1_backup
+  - PC2_backup
+  - PC3_backup
+  - PC4_backup
+  - PC5_backup
+  - result_backup
+
+# ##############
+# db_backupuser.yaml백업 관리자 계정
+# ##############
+backup_db: nas_backup
+backup_admin_user: backup_admin
+backup_admin_password: "BackupPass1."
+#########################
+# db_cron.yaml 
+#
+cron_user: ansible-admin
+python_path: /usr/bin/python3
+script_path: /home/ansible-admin/backup_to_db.py
+

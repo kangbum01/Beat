@@ -1,0 +1,17 @@
+---
+###############################################################################
+# 모든 호스트에 Python3 + MySQL 커넥터 설치
+###############################################################################
+
+- name: Python3 및 pip 설치
+  yum:
+    name:
+      - python3
+      - python3-pip
+    state: present
+
+- name: MySQL 커넥터 설치 (pip3 사용)
+  pip:
+    name: mysql-connector-python
+    executable: pip3
+

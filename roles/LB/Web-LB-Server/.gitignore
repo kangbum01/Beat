@@ -1,0 +1,13 @@
+# Ansible retry files
+*.retry
+
+# Temporary files
+*.swp
+*~
+.DS_Store
+
+# Log files
+*.log
+
+# Ansible temp folders
+.ansible/

@@ -1,0 +1,18 @@
+---
+# NAS → DB 백업 스크립트 cron 등록 (1시간 주기)
+#
+- name: NAS → DB 백업 스크립트 배포
+  template:
+    src: backup_to_db.py.j2
+    dest: "{{ script_path }}"
+    owner: "{{ cron_user }}"
+    group: "{{ cron_user }}"
+    mode: '0755'
+
+- name: NAS → DB 백업 cron 작업 등록 (1분 주기)
+  cron:
+    name: "NAS → DB 백업 (1분 주기)"
+    user: "{{ cron_user }}"
+    job: "{{ python_path }} {{ script_path }}"
+    minute: "*/1"
+

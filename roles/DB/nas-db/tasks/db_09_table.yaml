@@ -1,0 +1,22 @@
+---
+- name: 데이터베이스 생성 확인
+  community.mysql.mysql_db:
+    name: "{{ db_name }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: 백업 테이블 생성 확인
+  community.mysql.mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_db: "{{ db_name }}"
+    query: |
+      CREATE TABLE IF NOT EXISTS {{ item }} (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        file_data LONGBLOB NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+  loop: "{{ backup_tables }}"
+

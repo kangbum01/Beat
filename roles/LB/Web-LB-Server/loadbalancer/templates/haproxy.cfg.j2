@@ -1,0 +1,38 @@
+global
+    log         127.0.0.1 local2
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+
+defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    retries                 3
+    timeout http-request    10s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          1m
+    timeout server          1m
+    maxconn                 3000
+
+# [프론트엔드] 사용자 접속 (포트 80)
+frontend main
+    bind *:80
+    default_backend app_servers
+
+# [백엔드] 웹 서버 그룹 (11, 12, 13)
+backend app_servers
+    balance roundrobin  # 순서대로 분산 (라운드 로빈)
+    option httpchk GET /  # 헬스 체크 (서버 살아있나 확인)
+    
+    # 앤서블이 인벤토리의 [web_servers] 그룹을 돌면서 자동으로 IP를 채워넣음
+    {% for host in groups['web'] %}
+    server web{{ loop.index }} {{ hostvars[host]['ansible_host'] | default(host) }}:80 check
+    {% endfor %}
+
+

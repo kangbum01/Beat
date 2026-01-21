@@ -1,0 +1,5 @@
+---
+- name: Restart Backend Nginx
+  service:
+    name: nginx
+    state: restarted

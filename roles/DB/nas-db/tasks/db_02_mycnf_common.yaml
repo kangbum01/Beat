@@ -1,0 +1,27 @@
+---
+- name: MySQL 데이터 디렉토리 생성
+  file:
+    path: "{{ mysql_datadir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0750'
+
+- name: MySQL 공통 my.cnf 옵션 설정
+  ansible.builtin.template:
+    src: my.cnf_common.j2
+    dest: /etc/my.cnf
+    owner: mysql
+    group: mysql
+
+- name: MySQL 데이터 디렉토리 초기화
+  command: mysqld --initialize-insecure --datadir={{ mysql_datadir }} --user=mysql
+  args:
+    creates: "{{ mysql_datadir }}/mysql"
+
+- name: MySQL 서비스 시작 및 부팅 시 자동 실행
+  systemd:
+    name: "{{ mysql_service_name }}"
+    state: started
+    enabled: yes
+

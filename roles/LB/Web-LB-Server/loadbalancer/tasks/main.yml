@@ -1,0 +1,90 @@
+---
+- name: Install HAProxy
+  package:
+    name: haproxy
+    state: present
+
+# SELinux가 꺼져 있어도 안전하게 통과하도록 설정
+- name: Set SELinux to Permissive (Just in case)
+  command: setenforce 0
+  ignore_errors: yes
+
+- name: Configure HAProxy (Load Balancing)
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+  notify: Restart HAProxy
+
+- name: Validate HAProxy Configuration
+  command: haproxy -c -f /etc/haproxy/haproxy.cfg
+  register: haproxy_config_check
+
+# --- [HAProxy/Nginx 교체 작업 시작] ---
+
+- name: Force Stop Nginx (To ensure Port 80 is free)
+  service:
+    name: nginx
+    state: stopped
+  ignore_errors: yes
+
+# [추가] 혹시 Nginx가 8080을 잡고 안 놔줄까 봐 확실하게 사살
+- name: Kill any process holding port 8080
+  shell: fuser -k 8080/tcp
+  ignore_errors: yes
+
+- name: Reset Systemd Failed State
+  command: systemctl reset-failed
+  ignore_errors: yes
+
+# 1. HAProxy 시작 (80번 포트 점유)
+- name: Start HAProxy (Take Port 80)
+  service:
+    name: haproxy
+    state: started
+    enabled: yes
+
+# 2. Nginx 시작 (8080번 포트 점유) - 에러 시 로그 출력 기능 추가
+- name: Start Nginx (Back on Port 8080)
+  block:
+    - name: Start Nginx Service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+  rescue:
+    - name: Get Nginx Error Logs
+      command: journalctl -xeu nginx --no-pager -n 20
+      register: nginx_logs
+      
+    - name: Print Nginx Error Logs
+      debug:
+        msg: "{{ nginx_logs.stdout_lines }}"
+      
+    - name: Fail the play
+      fail:
+        msg: "Nginx failed to start. Check the logs printed above."
+
+# ========================================================
+# [수정됨] 방화벽 설정 (Firewalld 삭제 -> Iptables 적용)
+# ========================================================
+- name: Open Port 80 (HAProxy) for Everyone
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 80
+    jump: ACCEPT
+    action: insert
+    rule_num: 1 # 최상단에 삽입해서 확실하게 뚫음
+
+- name: Open Port 8080 (Nginx) for Everyone
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 8080
+    jump: ACCEPT
+    action: insert
+    rule_num: 2
+
+- name: Save iptables rules
+  shell: service iptables save
+  

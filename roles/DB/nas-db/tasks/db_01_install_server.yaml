@@ -1,0 +1,33 @@
+---
+# roles/nas_db/tasks/db_install.yaml
+# MySQL 8 설치 및 설정 (마스터/슬레이브 공통)
+
+- name: 기존 MySQL 패키지 제거
+  dnf:
+    name: "mysql*"
+    state: absent
+    autoremove: yes
+
+- name: DNF 캐시 정리
+  command: dnf clean all
+
+- name: MySQL GPG 키 가져오기
+  rpm_key:
+    state: present
+    key: "{{ item }}"
+  loop: "{{ mysql_gpg_keys }}"
+
+- name: MySQL 8 YUM 저장소 추가
+  yum_repository:
+    name: "{{ mysql_repo_name }}"
+    description: "{{ mysql_repo_description }}"
+    baseurl: "{{ mysql_repo_baseurl }}"
+    gpgcheck: yes
+    gpgkey: "{{ mysql_gpg_keys | join(' ') }}"
+    enabled: yes
+
+- name: MySQL 서버 설치
+  dnf:
+    name: "{{ mysql_package_name }}"
+    state: present
+

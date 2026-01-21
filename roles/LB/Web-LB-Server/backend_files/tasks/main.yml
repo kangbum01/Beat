@@ -1,0 +1,86 @@
+---
+- name: Install Nginx (For File Server)
+  package:
+    name: nginx
+    state: present
+
+- name: Install SELinux tools
+  package:
+    name: policycoreutils-python-utils
+    state: present
+
+- name: Allow Nginx to bind to port 8080 (SELinux)
+  command: semanage port -a -t http_port_t -p tcp 8080
+  ignore_errors: yes
+
+# ▼▼▼ [핵심 1] 설정 폴더를 통째로 삭제 (숨은 파일 제거) ▼▼▼
+- name: Nuke conf.d directory (Delete all potential config conflicts)
+  file:
+    path: /etc/nginx/conf.d
+    state: absent
+  notify: Restart Backend Nginx
+
+# ▼▼▼ [핵심 2] 깨끗한 빈 폴더 다시 생성 ▼▼▼
+- name: Recreate empty conf.d directory
+  file:
+    path: /etc/nginx/conf.d
+    state: directory
+    mode: '0755'
+
+- name: Remove default.d directory (Just in case)
+  file:
+    path: /etc/nginx/default.d
+    state: absent
+  notify: Restart Backend Nginx
+
+- name: Update Nginx Main Config (Strict Mode)
+  template:
+    src: backend_nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+  notify: Restart Backend Nginx
+
+- name: Ensure Project Directory Exists (Standard Path)
+  file:
+    path: /usr/share/nginx/html/music-project
+    state: directory
+    mode: '0755'
+    owner: nginx
+    group: nginx
+
+- name: Apply SELinux Context (Ignore errors if FS doesn't support)
+  command: chcon -R -t httpd_sys_content_t /usr/share/nginx/html/music-project
+  ignore_errors: yes
+
+- name: Configure File Server (Port 8080)
+  template:
+    src: file_server.conf.j2
+    dest: /etc/nginx/conf.d/file_server.conf
+  notify: Restart Backend Nginx
+
+- name: Verify Nginx Configuration
+  command: nginx -t
+
+# HAProxy와의 충돌 방지를 위해 잠시 멈춤
+- name: Stop HAProxy
+  service:
+    name: haproxy
+    state: stopped
+  ignore_errors: yes
+
+- name: Stop Nginx
+  service:
+    name: nginx
+    state: stopped
+  ignore_errors: yes
+
+- name: Kill any stuck Nginx processes
+  shell: pkill nginx
+  ignore_errors: yes
+
+- name: Start Nginx (Port 8080)
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- meta: flush_handlers

@@ -1,0 +1,11 @@
+---
+- name: 백업 관리자 계정 생성 확인
+  community.mysql.mysql_user:
+    name: "{{ backup_admin_user }}"
+    host: '%'
+    password: "{{ backup_admin_password }}"
+    priv: "{{ db_name }}.*:INSERT,SELECT"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+

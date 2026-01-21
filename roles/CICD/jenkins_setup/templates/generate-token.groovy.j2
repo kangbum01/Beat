@@ -1,0 +1,42 @@
+// role-jenkins-template-generate-token.groovy.j2
+// groovy는 자바 형식의 #을 사용하는게 아닌 //을 사용해야 함
+import jenkins.model.*
+import hudson.security.*
+import jenkins.security.*
+
+// generate-token.groovy.j2
+import jenkins.model.*
+import jenkins.security.*
+
+// 1. 유저 ID 및 경로 설정
+def adminId = "{{ admin_id }}"
+def tokenFilePath = "/var/jenkins_home/api_token.txt"
+
+// 2. [치트키] 클래스 풀 경로를 직접 사용하여 인식 오류 해결
+// hudson.model.User.get()을 직접 호출합니다.
+def user = hudson.model.User.get(adminId, true)
+
+if (user != null) {
+    // 3. API 토큰 생성 및 저장
+    def apiTokenProperty = user.getProperty(jenkins.security.ApiTokenProperty.class)
+    def result = apiTokenProperty.tokenStore.generateNewToken("ansible-token")
+    user.save()
+
+    // 4. 토큰 파일 쓰기
+    new File(tokenFilePath).text = result.plainValue
+    println "SUCCESS: Token generated for ${adminId}"
+} else {
+    println "FAILURE: User not found"
+}
+
+// 2. 신규 토큰 생성
+def tokenName = "ansible-generated-token"
+def result = apiTokenProperty.tokenStore.generateNewToken(tokenName)
+user.save()
+
+// 권한을 600으로 설정하여 저장 (보안 강화)
+def tokenFile = new File("/var/jenkins_home/api_token.txt")
+tokenFile.text = result.plainValue
+
+// 3. 앤서블이 읽을 수 있게 파일로 저장 (핵심!)
+new File("/var/jenkins_home/api_token.txt").text = result.plainValue
