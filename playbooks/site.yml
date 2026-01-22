@@ -7,24 +7,24 @@
 # - import_playbook: sync_time.yaml
 #   tags: [common, sync_time]
 
-# # 완료 
+# 완료
 # - import_playbook: nas_db.yaml
 #   tags: [db, nas_db]
 
 # 완료
-- import_playbook: cicd.yaml
-  tags: [cicd, jenkins]
+# - import_playbook: cicd.yaml
+#   tags: [cicd, jenkins]
 
-# # 완료
+# 완료
 # - import_playbook: ai.yaml
 #   tags: [ai]
 
-# # ?
+# 완료
 # - import_playbook: lb.yaml
 #   tags: [lb]
 
-# Monitoring 미완성
-#- import_playbook: monitoring.yml
+
+- import_playbook: monitoring.yaml
 
 # ==============================================================================
 # [ HISTORY & TROUBLESHOOTING ]

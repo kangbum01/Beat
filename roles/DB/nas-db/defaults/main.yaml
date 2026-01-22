@@ -8,7 +8,6 @@ nfs_mount_path: /mnt/NAS
 
 nfs_owner_user: ansible-admin
 
-
 pc_map:
   PC1: PC1_ai
   PC2: PC2_web
@@ -51,6 +50,10 @@ mysql_slave_options:
   - { key: "read_only", value: "ON" }
   - { key: "super_read_only", value: "ON" }
 
+# MHA user 계정 설정 (Master)/(slave)
+mysql_mha_user: mha
+mysql_mha_password: mhapass
+
 #5)
 # Replication 계정 설정 (Master)
 mysql_repl_user: repl
@@ -59,7 +62,7 @@ mysql_repl_privileges: "*.*:REPLICATION SLAVE"
 
 #6)
 # Replication (GTID)
-db_master_ip: "10.4.4.11"
+db_master_ip: "10.4.4.12"
 mysql_slave_check_timeout: 30
 
 
@@ -89,4 +92,3 @@ backup_admin_password: "BackupPass1."
 cron_user: ansible-admin
 python_path: /usr/bin/python3
 script_path: /home/ansible-admin/backup_to_db.py
-

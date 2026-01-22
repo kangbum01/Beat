@@ -1,6 +1,6 @@
 ---
 - name: Setup Monitoring environment
-  hosts: monitoring
+  hosts: monitoring, targets
   become: yes
   roles:
-    - Monitoring/monitoring_ansible
+    - Monitoring/

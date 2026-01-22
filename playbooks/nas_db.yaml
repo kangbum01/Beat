@@ -1,6 +1,6 @@
 ---
 - name: Setup NAS DB environment
-  hosts: db_master, db_slave, client
+  hosts: db_master, db_slave, client, db_nfs
   become: yes
   roles:
     - DB/nas-db

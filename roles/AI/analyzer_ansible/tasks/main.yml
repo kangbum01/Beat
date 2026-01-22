@@ -36,7 +36,7 @@
   file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
     mode: '0755'
   loop:
     - "{{ analyzer_root }}"
@@ -48,7 +48,7 @@
   copy:
     src: "{{ role_path }}/src/{{ item }}"
     dest: "{{ analyzer_root }}/src/{{ item }}"
-    owner: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
     mode: '0644'
   loop:
     - api.py

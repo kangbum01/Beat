@@ -2,6 +2,7 @@
 - name: 1_1) NFS 서버 설정
   import_tasks: nfs_01_server.yaml
   when: "'db_nfs' in group_names"
+  become: true
 
 - name: 1_2) NFS 클라이언트 설정
   import_tasks: nfs_02_client.yaml

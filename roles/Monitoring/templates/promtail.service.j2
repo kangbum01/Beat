@@ -1,0 +1,14 @@
+[Unit]
+Description=Promtail service
+After=network.target
+
+[Service]
+Type=simple
+# 실행 계정을 변수화하여 관리 편의성을 높였습니다.
+User={{ promtail_user | default('root') }}
+# 바이너리 경로와 설정 파일 경로를 변수화했습니다.
+ExecStart={{ promtail_bin_path | default('/usr/local/bin/promtail') }} -config.file={{ promtail_config_path | default('/etc/promtail-config.yml') }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

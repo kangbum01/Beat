@@ -1,0 +1,14 @@
+[Unit]
+Description=Loki service
+After=network.target
+
+[Service]
+Type=simple
+# 실행 계정을 변수화하였습니다.
+User={{ loki_user | default('ansible-admin') }}
+# 바이너리 경로와 설정 파일 경로를 변수화했습니다.
+ExecStart={{ loki_bin_path | default('/usr/local/bin/loki') }} -config.file={{ loki_config_path | default('/etc/loki-config.yaml') }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

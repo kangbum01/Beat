@@ -2,7 +2,7 @@
 # 프로젝트 경로 설정
 analyzer_root: "/home/{{ ansible_user }}/music_analyzer"
 web_static_path: "/home/{{ ansible_user }}/project/web"
-analyzer_git_path: "/home/{{ ansible_user_id }}/project"
+analyzer_git_path: "/home/{{ ansible_user }}/project"
 nas_dir: "/mnt/NAS/result/"
 
 

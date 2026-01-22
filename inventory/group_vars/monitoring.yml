@@ -1,12 +1,23 @@
 ---
-# inventory/group_vars/Monitoring.yml
-node_exporter_ver: "1.7.0"
-promtail_ver: "2.9.2"
-prometheus_ver: "2.48.0"
-loki_ver: "2.9.2"
-grafana_ver: "10.2.2"
-blackbox_exporter_ver: "0.24.0"
 
-# 모니터링 중앙 서버 IP
-monitoring_server_ip: "10.4.5.10"
-admin_user: "ansible-admin"
+
+# --- 포트 설정 ---
+prometheus_port: 9090
+loki_port: 3100
+promtail_port: 9080
+blackbox_exporter_port: 9115
+node_exporter_port: 9100
+
+
+
+# --- 경로 및 보관 설정 ---
+prometheus_db_path: "/var/lib/prometheus/"
+prometheus_retention_time: "15d"
+journal_max_age: "12h"
+
+
+
+# --- 모니터링 사용자 계정 생성 ---
+minio_data_path: "/mnt/NAS/minio_data"
+minio_root_user: "minioadmin"
+minio_root_password: "minioadmin"

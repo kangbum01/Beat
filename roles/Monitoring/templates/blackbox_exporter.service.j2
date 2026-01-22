@@ -1,0 +1,12 @@
+[Unit]
+Description=Blackbox Exporter
+After=network.target
+
+[Service]
+User=root
+# 실행 파일 경로와 설정 파일 경로를 변수화했습니다.
+ExecStart={{ blackbox_exporter_bin_path | default('/usr/local/bin/blackbox_exporter') }} --config.file={{ blackbox_exporter_config_dir | default('/etc/prometheus') }}/blackbox.yml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

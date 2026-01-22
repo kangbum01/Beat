@@ -72,4 +72,3 @@
     owner: "{{ nfs_owner_user }}"
     group: "{{ nfs_owner_user }}"
     mode: '0755'
-

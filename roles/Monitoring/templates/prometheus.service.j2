@@ -1,0 +1,25 @@
+[Unit]
+Description=Prometheus Monitoring Server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+# 실행 계정과 그룹을 변수화했습니다.
+User={{ prometheus_user | default('prometheus') }}
+Group={{ prometheus_group | default('prometheus') }}
+Type=simple
+
+# 실행 경로, 설정 파일, 저장소 경로, 데이터 보관 기간을 모두 변수화했습니다.
+ExecStart={{ prometheus_bin_path | default('/usr/local/bin/prometheus') }} \
+  --config.file={{ prometheus_config_path | default('/etc/prometheus/prometheus.yml') }} \
+  --storage.tsdb.path={{ prometheus_db_path | default('/var/lib/prometheus/') }} \
+  --storage.tsdb.retention.time={{ prometheus_retention_time | default('15d') }} \
+  --web.enable-lifecycle
+
+Restart=always
+RestartSec=5
+# 시스템 리소스 제한 수치도 변수로 관리하면 대규모 환경 대응이 쉽습니다.
+LimitNOFILE={{ prometheus_limit_nofile | default('65536') }}
+
+[Install]
+WantedBy=multi-user.target

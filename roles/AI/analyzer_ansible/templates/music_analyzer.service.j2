@@ -3,8 +3,8 @@ Description=MRDW Music Analyzer API Service
 After=network.target
 
 [Service]
-User={{ ansible_user_id }}
-Group={{ ansible_user_id }}
+User={{ ansible_user }}
+Group={{ ansible_user }}
 WorkingDirectory={{ analyzer_root }}/src
 # Ansible 변수를 환경 변수로 변환하여 Python에 주입
 Environment=PYTHONPATH={{ analyzer_root }}/src
