@@ -1,13 +1,12 @@
 server:
-  http_listen_port: 9080
+  http_listen_port: {{ promtail_port | default(9080) }}
   grpc_listen_port: 9097
 
 positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://{{ monitoring_server_ip }}:3100/loki/api/v1/push
-    tenant_id: "monitoring"
+  - url: http://{{ monitoring_server_ip }}:{{ loki_port | default(3100) }}/loki/api/v1/push
 
 scrape_configs:
   - job_name: system_logs
@@ -20,15 +19,10 @@ scrape_configs:
         __path__: /var/log/messages
     
     pipeline_stages:
-      # 1. 로그 내용에서 중요 키워드 감지 (대소문자 무시)
       - regex:
           expression: "(?i)(?P<error_keyword>error|warn|fail|critical|exception|fatal)"
-      
-      # 2. 키워드가 발견되면 level 라벨을 'error'로 설정 (Loki의 15일 보관 정책과 연결)
       - labels:
           level: error_keyword
-
-      # 3. 너무 단순한 INFO 세션 로그 등은 제거 (용량 최적화)
       - drop:
           expression: ".*session opened for user root.*"
 
@@ -41,7 +35,6 @@ scrape_configs:
         server_group: "{{ group_names[0] if group_names else 'standalone' }}"
         __path__: /var/log/secure
     pipeline_stages:
-      # 보안 로그 중 'Failed password' (로그인 실패)는 매우 중요하므로 에러 레벨 부여
       - match:
           selector: '{job="auth_logs"} |= "Failed"'
           stages:

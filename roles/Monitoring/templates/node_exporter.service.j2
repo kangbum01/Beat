@@ -3,12 +3,10 @@ Description=Node Exporter
 After=network.target
 
 [Service]
-# 실행 계정과 그룹을 변수화하여 서버 환경에 맞게 조절 가능하도록 합니다.
-User={{ node_exporter_user | default('ansible-admin') }}
-Group={{ node_exporter_group | default('ansible-admin') }}
+User={{ node_exporter_user }}
+Group={{ node_exporter_user }}
 Type=simple
-# 바이너리 설치 경로를 변수화했습니다.
-ExecStart={{ node_exporter_bin_path | default('/usr/local/bin/node_exporter') }}
+ExecStart=/usr/local/bin/node_exporter --web.listen-address=":{{ node_exporter_port }}"
 Restart=always
 
 [Install]

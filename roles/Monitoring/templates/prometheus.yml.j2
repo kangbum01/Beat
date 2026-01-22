@@ -11,20 +11,20 @@ scrape_configs:
     static_configs:
       - targets:
 {% for host in groups['targets'] %}
-          - '{{ hostvars[host].ansible_host | default(host) }}:9100'
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ node_exporter_port | default(9100) }}'
 {% endfor %}
 
   - job_name: 'promtail'
     static_configs:
-      - targets: ['localhost:9080']
+      - targets: ['localhost:{{ promtail_port | default(9080) }}']
 
   - job_name: 'medw-web-uptime'
     metrics_path: /probe
     params:
-      module: [http_2xx]
+      module: [{{ blackbox_module | default('http_2xx') }}]
     static_configs:
       - targets:
-          - 'http://{{ load_balancer_external_ip }}' # 외부망 LB
+          - 'http://{{ load_balancer_external_ip }}'
 {% for host in groups['web'] %}
           - 'http://{{ hostvars[host].ansible_host | default(host) }}'
 {% endfor %}
@@ -34,4 +34,4 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: 'localhost:{{ blackbox_exporter_port | default(9115) }}'
+        replacement: '{{ monitoring_server_ip }}:{{ blackbox_exporter_port | default(9115) }}'

@@ -1,0 +1,16 @@
+{
+  "title": "MEDW-웹-가용성-모니터링",
+  "uid": "web-uptime",
+  "panels": [
+    {
+      "title": "HTTP 응답 상태 (Success=1)",
+      "type": "gauge",
+      "targets": [{ "expr": "probe_success{job='medw-web-uptime'}" }]
+    },
+    {
+      "title": "웹 페이지 로딩 속도",
+      "type": "timeseries",
+      "targets": [{ "expr": "probe_duration_seconds{job='medw-web-uptime'}" }]
+    }
+  ]
+}
