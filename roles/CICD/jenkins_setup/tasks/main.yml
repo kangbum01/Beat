@@ -279,3 +279,32 @@
     owner: "{{ jenkins_uid }}"
     group: "{{ target_gid }}"
     mode: "0755"
+
+
+###############################
+
+# 7. 결과 출력 및 민감 정보 정리
+
+####################################################################
+
+- name: "7-1. Jenkins 정보 출력"
+
+  ansible.builtin.debug:
+
+    msg:
+
+      - "🚀 Jenkins CI/CD 서버 구축 완료"
+
+      - "URL: http://{{ ansible_host }}:8080"
+
+      - "Job Name: {{ jenkins_job_name }}"
+
+
+
+- name: "7-2. API 토큰 파일 제거"
+
+  ansible.builtin.file:
+
+    path: "{{ jenkins_home }}/api_token.txt"
+
+    state: absent
