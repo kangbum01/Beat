@@ -9,4 +9,5 @@ enforce_gtid_consistency = ON
 gtid_mode = ON
 binlog_format = ROW
 log-bin = mysql-bin
-
+relay_log = {{ mysql_datadir }}/ansible-relay-bin
+relay_log_index = {{ mysql_datadir }}/mysql/ansible-relay-bin.index

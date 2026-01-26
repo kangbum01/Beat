@@ -13,4 +13,3 @@
     name: mysqld
     state: restarted
   when: master_conf is changed
-

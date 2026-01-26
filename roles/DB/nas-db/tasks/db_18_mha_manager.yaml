@@ -1,0 +1,232 @@
+---
+# roles/nas_db/tasks/manager.yaml
+# MHA Manager 서버(10.4.4.11) 설정
+
+- name: MHA 필수 패키지 설치
+  ansible.builtin.dnf:
+    name:
+      - perl-JSON
+      - mysql
+    state: present
+
+- name: MHA Manager 저장소 클론
+  ansible.builtin.git:
+    repo: https://github.com/yoshinorim/mha4mysql-manager.git
+    dest: /home/ansible-admin/src/mha4mysql-manager
+    update: no
+  become_user: ansible-admin
+
+- name: MHA Manager Makefile 존재 확인
+  ansible.builtin.stat:
+    path: /home/ansible-admin/src/mha4mysql-manager/Makefile
+  register: manager_makefile_stat
+
+- name: MHA Manager Makefile 생성
+  ansible.builtin.shell:
+    cmd: perl Makefile.PL --installdirs site
+    chdir: /home/ansible-admin/src/mha4mysql-manager
+  become_user: ansible-admin
+  when: not manager_makefile_stat.stat.exists
+
+- name: MHA Manager 빌드
+  ansible.builtin.make:
+    chdir: /home/ansible-admin/src/mha4mysql-manager
+  become_user: ansible-admin
+
+- name: MHA Manager 설치
+  ansible.builtin.make:
+    chdir: /home/ansible-admin/src/mha4mysql-manager
+    target: install
+
+- name: MHA 설정 디렉토리 생성
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0755'
+  loop:
+    - /etc/mha
+    - /var/log/mha
+    - /var/log/mha/app1
+
+- name: .my.cnf 파일 생성
+  ansible.builtin.copy:
+    content: |
+      [client]
+      user=mha
+      password=mhapass
+    dest: /home/ansible-admin/.my.cnf
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0600'
+
+- name: MHA 설정 파일 생성
+  ansible.builtin.copy:
+    content: |
+      [server default]
+      user=mha
+      password=mhapass
+      ssh_user=ansible-admin
+      repl_user=repl
+      repl_password=replpass
+      
+      manager_workdir=/var/log/mha/app1
+      manager_log=/var/log/mha/app1/manager.log
+      remote_workdir=/var/log/mha/app1
+      
+      ping_interval=3
+      ping_type=CONNECT
+      master_binlog_dir=/mnt/new_disk/mysql
+      secondary_check_script=masterha_secondary_check -s 10.4.4.13 --user=ansible-admin
+      master_ip_failover_script=/usr/local/bin/master_ip_failover.sh
+      master_ip_online_change_script=/usr/local/bin/master_ip_online_change.sh
+      
+      [server1]
+      hostname=10.4.4.12
+      port=3306
+      candidate_master=1
+      check_repl_delay=0
+      
+      [server2]
+      hostname=10.4.4.13
+      port=3306
+      candidate_master=1
+      check_repl_delay=0
+    dest: /etc/mha/app1.cnf
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0644'
+
+- name: VIP Failover 스크립트 생성 (개선 버전)
+  ansible.builtin.template:
+    src: master_ip_failover.sh.j2
+    dest: /usr/local/bin/master_ip_failover.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: VIP Online Change 스크립트 생성
+  ansible.builtin.template:
+    src: master_ip_online_change.sh.j2
+    dest: /usr/local/bin/master_ip_online_change.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: 자동 복구 스크립트 생성 (무한 대기 + 로그 최적화)
+  ansible.builtin.template:
+    src: mha_auto_recovery.sh.j2
+    dest: /usr/local/bin/mha_auto_recovery.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: MHA 사전 체크 스크립트 생성
+  ansible.builtin.template:
+    src: mha_precheck.sh.j2
+    dest: /usr/local/bin/mha_precheck.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: MHA Manager systemd 서비스 생성
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=MHA Manager for MySQL HA
+      After=network.target
+      
+      [Service]
+      Type=simple
+      User=ansible-admin
+      ExecStartPre=/bin/sleep 3
+      ExecStartPre=/usr/local/bin/mha_precheck.sh
+      ExecStart=/usr/local/bin/masterha_manager --conf=/etc/mha/app1.cnf
+      Restart=on-failure
+      RestartSec=10
+      StandardOutput=append:/var/log/mha/manager.out
+      StandardError=append:/var/log/mha/manager.out
+      
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/mha-manager.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: systemd 데몬 리로드
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: MHA Manager 서비스 활성화
+  ansible.builtin.systemd:
+    name: mha-manager
+    enabled: yes
+
+- name: MySQL 접속 테스트 - Master
+  ansible.builtin.shell:
+    cmd: mysql -h 10.4.4.12 -umha -pmhapass -e "SELECT @@hostname;"
+  register: mysql_master_test
+  changed_when: false
+  failed_when: mysql_master_test.rc != 0
+
+- name: MySQL 접속 테스트 - Slave
+  ansible.builtin.shell:
+    cmd: mysql -h 10.4.4.13 -umha -pmhapass -e "SELECT @@hostname;"
+  register: mysql_slave_test
+  changed_when: false
+  failed_when: mysql_slave_test.rc != 0
+
+- name: MySQL 접속 테스트 결과 출력
+  ansible.builtin.debug:
+    msg: "MySQL 접속 테스트 성공: Master와 Slave 모두 정상"
+
+- name: MHA SSH 체크 실행
+  ansible.builtin.shell:
+    cmd: masterha_check_ssh --conf=/etc/mha/app1.cnf
+  become_user: ansible-admin
+  register: mha_ssh_check
+  changed_when: false
+  failed_when: false
+
+- name: MHA SSH 체크 결과 출력
+  ansible.builtin.debug:
+    var: mha_ssh_check.stdout_lines
+
+- name: MHA Replication 체크 실행
+  ansible.builtin.shell:
+    cmd: masterha_check_repl --conf=/etc/mha/app1.cnf
+  become_user: ansible-admin
+  register: mha_repl_check
+  changed_when: false
+  failed_when: false
+
+- name: MHA Replication 체크 결과 출력
+  ansible.builtin.debug:
+    var: mha_repl_check.stdout_lines
+
+- name: MHA Manager 서비스 시작
+  ansible.builtin.systemd:
+    name: mha-manager
+    state: started
+
+- name: MHA Manager 시작 대기
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: MHA 상태 확인
+  ansible.builtin.shell:
+    cmd: masterha_check_status --conf=/etc/mha/app1.cnf
+  become_user: ansible-admin
+  register: mha_status
+  changed_when: false
+  failed_when: false
+
+- name: MHA 상태 출력
+  ansible.builtin.debug:
+    var: mha_status.stdout_lines
+
+- name: Manager 설정 완료
+  ansible.builtin.debug:
+    msg: "==== MHA Manager 서버 설정 완료 ===="

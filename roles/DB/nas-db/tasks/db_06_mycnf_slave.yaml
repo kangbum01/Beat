@@ -13,4 +13,3 @@
     name: mysqld
     state: restarted
   when: slave_conf is changed
-

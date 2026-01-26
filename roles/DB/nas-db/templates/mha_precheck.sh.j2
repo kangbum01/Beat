@@ -1,0 +1,27 @@
+#!/bin/bash
+LOG="/var/log/mha/precheck.log"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG"
+}
+
+log "========================================="
+log "MHA Pre-Start Check"
+log "========================================="
+
+log "Testing MySQL connections..."
+if mysql -h 10.4.4.12 -umha -pmhapass -e "SELECT @@hostname;" >> "$LOG" 2>&1; then
+    log "Master (10.4.4.12) OK"
+else
+    log "Master (10.4.4.12) FAILED"
+    exit 1
+fi
+
+if mysql -h 10.4.4.13 -umha -pmhapass -e "SELECT @@hostname;" >> "$LOG" 2>&1; then
+    log "Slave (10.4.4.13) OK"
+else
+    log "Slave (10.4.4.13) FAILED"
+    exit 1
+fi
+
+log "All pre-checks passed"

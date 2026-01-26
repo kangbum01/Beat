@@ -1,52 +1,58 @@
 ---
-# roles/nas_db/tasks/nfs_02_client.yaml
-- name: 기존 NFS 마운트 상태 확인
-  command: mountpoint -q "{{ nfs_mount_path }}"
-  register: mount_check
-  ignore_errors: true
-  become: true
+############################
+## roles/nas_db/tasks/nfs_02_client.yaml
+## (Master/Slave)
+## /etc/my.cnf 공통 설정
+############################
 
-- name: 기존 NFS 마운트 해제 (lazy)
-  command: umount --lazy "{{ nfs_mount_path }}"
+- name: NFS 마운트 여부 확인 (stale-safe)
+  shell: grep -q " {{ nfs_mount_path }} " /proc/self/mounts
+  register: mount_check
+  failed_when: false
+  changed_when: false
+
+- name: 기존 NFS 마운트 강제 해제 (lazy + force + timeout)
+  ansible.builtin.shell: |
+    timeout 10 umount -fl "{{ nfs_mount_path }}" || true
   when: mount_check.rc == 0
-  ignore_errors: true
-  become: true
+  ignore_errors: yes
+
+- name: umount 후 커널 안정화 대기
+  pause:
+    seconds: 2
+  when: mount_check.rc == 0
 
 - name: 기존 파일/디렉토리 삭제
-  file:
+  ansible.builtin.file:
     path: "{{ nfs_mount_path }}"
     state: absent
-  ignore_errors: true
-  become: true
+  ignore_errors: yes
 
-- name: 새 디렉토리 생성
-  file:
+- name: NFS 마운트 디렉토리 재생성
+  ansible.builtin.file:
     path: "{{ nfs_mount_path }}"
     state: directory
     owner: "{{ nfs_owner_user }}"
     group: "{{ nfs_owner_user }}"
     mode: '0755'
-  become: true
 
 - name: NFS 클라이언트 패키지 설치
-  yum:
-    name: nfs-utils
+  ansible.builtin.dnf:
+    name: "{{ item }}"
     state: present
-  become: true
+  loop: "{{ nfs_client_packages }}"
 
 - name: NFS 공유 마운트
-  mount:
+  ansible.posix.mount:
     path: "{{ nfs_mount_path }}"
-    src: "{{ hostvars[groups['db_nfs'][0]].ansible_host }}:{{ nfs_mount_path }}"
+    src: "{{ db_nfs_ip }}:{{ nfs_mount_path }}"
     fstype: nfs
     opts: hard,intr
     state: mounted
-  become: true
 
 - name: fstab에 NFS 자동 마운트 등록
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/fstab
     regexp: '^.*:/mnt/NAS\s+/mnt/NAS\s+nfs'
-    line: "{{ hostvars[groups['db_nfs'][0]].ansible_host }}:{{ nfs_mount_path }}  {{ nfs_mount_path }}  nfs  defaults  0  0"
+    line: "{{ db_nfs_ip }}:{{ nfs_mount_path }}  {{ nfs_mount_path }}  nfs  defaults  0  0"
     create: yes
-  become: true

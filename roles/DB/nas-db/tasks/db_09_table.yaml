@@ -19,4 +19,3 @@
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
   loop: "{{ backup_tables }}"
-

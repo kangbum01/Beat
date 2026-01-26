@@ -1,0 +1,52 @@
+#!/bin/bash
+
+VIP="10.4.4.100/24"
+LOGFILE="/var/log/mha/vip_online_change.log"
+mkdir -p /var/log/mha
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOGFILE"
+}
+
+command=""
+orig_master_host=""
+new_master_host=""
+ssh_user="ansible-admin"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --command=*) command="${1#*=}" ;;
+        --orig_master_host=*) orig_master_host="${1#*=}" ;;
+        --new_master_host=*) new_master_host="${1#*=}" ;;
+        --ssh_user=*) ssh_user="${1#*=}" ;;
+    esac
+    shift
+done
+
+log "=== Online Change Command: $command ==="
+
+case "$command" in
+    stop)
+        log "Removing VIP from $orig_master_host"
+        IFACE=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} "ip route | awk '/default/ {print \$5}'")
+        ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} \
+            "sudo /usr/sbin/ip addr del $VIP dev $IFACE 2>/dev/null || true"
+        log "VIP removed"
+        exit 0
+        ;;
+    start)
+        log "Adding VIP to $new_master_host"
+        IFACE=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} "ip route | awk '/default/ {print \$5}'")
+        ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} \
+            "sudo /usr/sbin/ip addr add $VIP dev $IFACE 2>/dev/null || true"
+        log "VIP added"
+        exit 0
+        ;;
+    status)
+        exit 0
+        ;;
+    *)
+        log "Unknown command"
+        exit 0
+        ;;
+esac

@@ -1,0 +1,34 @@
+---
+- name: /mnt/new_disk/mysql 디렉토리 소유권 설정
+  ansible.builtin.file:
+    path: /mnt/new_disk/mysql
+    owner: mysql
+    group: mysql
+    recurse: yes
+    state: directory
+
+- name: /mnt/new_disk/mysql 디렉토리 권한 설정
+  ansible.builtin.file:
+    path: /mnt/new_disk/mysql
+    mode: '0755'
+    state: directory
+
+- name: ansible-admin을 mysql 그룹에 추가
+  ansible.builtin.user:
+    name: ansible-admin
+    groups: mysql
+    append: yes
+
+- name: Ansible SSH 연결 재설정 (그룹 변경 즉시 적용)
+  ansible.builtin.meta: reset_connection
+
+- name: 그룹 변경 적용 확인
+  ansible.builtin.command:
+    cmd: id -Gn
+  become_user: ansible-admin
+  register: current_groups
+  changed_when: false
+
+- name: 그룹 멤버십 확인
+  ansible.builtin.debug:
+    msg: "ansible-admin 현재 그룹: {{ current_groups.stdout }}"

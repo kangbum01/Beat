@@ -1,0 +1,134 @@
+#!/bin/bash
+
+VIP="10.4.4.100/24"
+LOGFILE="/var/log/mha/vip_failover.log"
+RECOVERY_SCRIPT="/usr/local/bin/mha_auto_recovery.sh"
+MYSQL_USER="mha"
+MYSQL_PASS="mhapass"
+mkdir -p /var/log/mha
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOGFILE"
+}
+
+command=""
+orig_master_host=""
+new_master_host=""
+ssh_user="ansible-admin"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --command=*) command="${1#*=}" ;;
+        --orig_master_host=*) orig_master_host="${1#*=}" ;;
+        --new_master_host=*) new_master_host="${1#*=}" ;;
+        --ssh_user=*) ssh_user="${1#*=}" ;;
+    esac
+    shift
+done
+
+log "=== Command: $command, Orig: $orig_master_host, New: $new_master_host ==="
+
+case "$command" in
+    stop|stopssh)
+        log "Attempting to remove VIP from $orig_master_host"
+        
+        # SSH 접속 가능 여부 확인 (타임아웃 5초)
+        if timeout 5 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 \
+            ${ssh_user}@${orig_master_host} "echo 'SSH OK'" >/dev/null 2>&1; then
+            
+            log "SSH accessible - attempting VIP removal"
+            
+            # 인터페이스 확인 및 VIP 삭제
+            IFACE=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} \
+                "ip route | awk '/default/ {print \$5}'" 2>/dev/null)
+            
+            if [ -n "$IFACE" ]; then
+                # VIP가 실제로 존재하는지 확인
+                VIP_EXISTS=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} \
+                    "ip addr show | grep '10.4.4.100'" 2>/dev/null | wc -l)
+                
+                if [ "$VIP_EXISTS" -gt 0 ]; then
+                    log "VIP found on $orig_master_host - removing..."
+                    ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} \
+                        "sudo /usr/sbin/ip addr del $VIP dev $IFACE" 2>/dev/null
+                    
+                    # 삭제 확인
+                    sleep 1
+                    VIP_CHECK=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${orig_master_host} \
+                        "ip addr show | grep '10.4.4.100'" 2>/dev/null | wc -l)
+                    
+                    if [ "$VIP_CHECK" -eq 0 ]; then
+                        log "✓ VIP successfully removed from $orig_master_host"
+                    else
+                        log "⚠ VIP removal may have failed - check manually"
+                    fi
+                else
+                    log "VIP not found on $orig_master_host - already removed"
+                fi
+            else
+                log "⚠ Could not determine network interface on $orig_master_host"
+            fi
+        else
+            log "SSH not accessible on $orig_master_host (VM down/suspended/network issue)"
+            log "VIP removal will be handled during auto-recovery or manual intervention"
+        fi
+        
+        exit 0
+        ;;
+        
+    start)
+        log "Adding VIP to $new_master_host"
+        
+        # 새 마스터의 MySQL이 정상인지 확인
+        if ! timeout 5 mysql -h $new_master_host -u$MYSQL_USER -p$MYSQL_PASS \
+            -e "SELECT 1" >/dev/null 2>&1; then
+            log "ERROR: MySQL not responding on $new_master_host!"
+            exit 1
+        fi
+        
+        # 기존 VIP 존재 여부 확인
+        EXISTING_VIP=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} \
+            "ip addr show | grep '10.4.4.100'" 2>/dev/null | wc -l)
+        
+        if [ "$EXISTING_VIP" -gt 0 ]; then
+            log "VIP already exists on $new_master_host"
+        else
+            IFACE=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} \
+                "ip route | awk '/default/ {print \$5}'")
+            
+            ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} \
+                "sudo /usr/sbin/ip addr add $VIP dev $IFACE" 2>/dev/null
+            
+            sleep 1
+            VIP_CHECK=$(ssh -o StrictHostKeyChecking=no ${ssh_user}@${new_master_host} \
+                "ip addr show | grep '10.4.4.100'" 2>/dev/null | wc -l)
+            
+            if [ "$VIP_CHECK" -gt 0 ]; then
+                log "✓ VIP successfully added to $new_master_host"
+            else
+                log "ERROR: Failed to add VIP to $new_master_host"
+                exit 1
+            fi
+        fi
+        
+        log "Starting auto-recovery script..."
+        log "Command: bash $RECOVERY_SCRIPT $orig_master_host $new_master_host"
+        
+        sudo systemd-run --unit=mha-auto-recovery \
+            --description="MHA Auto Recovery" \
+            /bin/bash "$RECOVERY_SCRIPT" "$orig_master_host" "$new_master_host" \
+            >> "$LOGFILE" 2>&1
+        
+        log "Auto-recovery script launched in background"
+        exit 0
+        ;;
+        
+    status)
+        exit 0
+        ;;
+        
+    *)
+        log "ERROR: Unknown command: $command"
+        exit 1
+        ;;
+esac

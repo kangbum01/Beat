@@ -1,0 +1,42 @@
+---
+############################
+## roles/nas_db/tasks/init_01_hostname.yaml
+## (Master/Slave)
+## 호스트네임 설정
+############################
+- name: 호스트네임 설정 (db-nfs)
+  ansible.builtin.hostname:
+    name: "{{ db_nfs_hostname }}"
+    use: systemd
+  when: "'db_nfs' in group_names"
+
+- name: 호스트네임 설정 (db-master)
+  ansible.builtin.hostname:
+    name: "{{ db_master_hostname }}"
+    use: systemd
+  when: "'db_master' in group_names"
+
+- name: 호스트네임 설정 (db-slave)
+  ansible.builtin.hostname:
+    name: "{{ db_slave_hostname }}"
+    use: systemd
+  when: "'db_slave' in group_names"
+
+- name: /etc/hosts 기존 항목 제거
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ db_nfs_hostname }}"
+    - "{{ db_master_hostname }}"
+    - "{{ db_slave_hostname }}"
+
+- name: /etc/hosts 항목 추가
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    block: |
+      {{ db_nfs_ip }} {{ db_nfs_hostname }}
+      {{ db_master_ip }} {{ db_master_hostname }}
+      {{ db_slave_ip }} {{ db_slave_hostname }}
+    marker: "# {mark} ansible로 호스트명 설정"

@@ -1,61 +1,82 @@
 ---
+- name: 0_1) hostname 설정
+  include_tasks: init_01_hostname.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names or 'db_nfs' in group_names"
+
 - name: 1_1) NFS 서버 설정
-  import_tasks: nfs_01_server.yaml
+  include_tasks: nfs_01_server.yaml
   when: "'db_nfs' in group_names"
-  become: true
 
 - name: 1_2) NFS 클라이언트 설정
-  import_tasks: nfs_02_client.yaml
+  include_tasks: nfs_02_client.yaml
   when: "'client' in group_names"
 
-# - name: 2_1) DB 설치 (마스터/슬레이브 공통)
-#   import_tasks: db_01_install_server.yaml
-#   when: "'db_master' in group_names or 'db_slave' in group_names"
+- name: 2_1) DB 설치 (마스터/슬레이브 공통)
+  include_tasks: db_01_install_server.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names"
 
-# - name: 2_2) (Master/Slave) my.cnf 공통 설정 및 mysql 디렉토리 설정
-#   import_tasks: db_02_mycnf_common.yaml
-#   when: "'db_master' in group_names or 'db_slave' in group_names"
+- name: 2_2) (Master/Slave) my.cnf 공통 설정 및 mysql 디렉토리 설정
+  include_tasks: db_02_mycnf_common.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names"
 
-# - name: 2_3) (Master) MySQL 방화벽 설정
-#   import_tasks: db_03_firewall.yaml
-#   when: "'db_master' in group_names"
+- name: 2_3) (Master) MySQL 방화벽 설정
+  include_tasks: db_03_firewall.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_4) (Master/Slave) MySQL 공통 초기 설정
-#   import_tasks: db_04_root_init.yaml
-#   when: "'db_master' in group_names or 'db_slave' in group_names"
+- name: 2_4) (Master/Slave) MySQL 공통 초기 설정
+  include_tasks: db_04_root_init.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names"
 
-# - name: 2_5) (Master) my.cnf 설정
-#   import_tasks: db_05_mycnf_master.yaml
-#   when: "'db_master' in group_names"
+- name: 2_5) (Master) my.cnf 설정
+  include_tasks: db_05_mycnf_master.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_6) (Slave) my.cnf 설정
-#   import_tasks: db_06_mycnf_slave.yaml
-#   when: "'db_slave' in group_names"
+- name: 2_6) (Slave) my.cnf 설정
+  include_tasks: db_06_mycnf_slave.yaml
+  when: "'db_slave' in group_names"
 
-# - name: 2_7) (Master) Replication User 생성
-#   import_tasks: db_07_repl_user.yaml
-#   when: "'db_master' in group_names"
+- name: 2_7) (Master) Replication User 생성
+  include_tasks: db_07_repl_user.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_8) (Slave) GTID 기반 복제 설정
-#   import_tasks: db_08_gtid.yaml
-#   when: "'db_slave' in group_names"
+- name: 2_8) (Slave) GTID 기반 복제 설정
+  include_tasks: db_08_gtid.yaml
+  when: "'db_slave' in group_names"
 
-# - name: 2_9) 백업 DB 및 테이블 생성 (마스터 전용)
-#   import_tasks: db_09_table.yaml
-#   when: "'db_master' in group_names"
+- name: 2_9) 백업 DB 및 테이블 생성 (마스터 전용)
+  include_tasks: db_09_table.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_10) 백업 관리자 계정 생성 (마스터 전용)
-#   import_tasks: db_10_backup_user.yaml
-#   when: "'db_master' in group_names"
+- name: 2_10) 백업 관리자 계정 생성 (마스터 전용)
+  include_tasks: db_10_backup_user.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_11) install mysql-connector
-#   import_tasks: db_11_install_connector.yaml
+- name: 2_11) install mysql-connector
+  include_tasks: db_11_install_connector.yaml
 
-# - name: 2_12) NAS → DB 백업 cron 설정
-#   import_tasks: db_12_cron.yaml
-#   when: "'db_master' in group_names"
+- name: 2_12) NAS → DB 백업 cron 설정
+  include_tasks: db_12_cron.yaml
+  when: "'db_master' in group_names"
 
-# - name: 2_13) 백업 복구 프로그램 배포
-#   import_tasks: db_13_deploy_program.yaml
+- name: 2_13) 백업 복구 프로그램 배포
+  include_tasks: db_13_deploy_program.yaml
 
-  
+- name: 2_14) 권한설정
+  include_tasks: db_14_pri.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names"
+
+- name: 2_15) mha 공통설정 설치
+  include_tasks: db_15_mha_commoninstall.yaml
+  when: "'db_master' in group_names or 'db_slave' in group_names or 'db_nfs' in group_names"
+
+- name: 2_16) mha master 설정
+  include_tasks: db_16_mha_master.yaml
+  when: "'db_master' in group_names"
+
+- name: 2_17) mha slave 설정
+  include_tasks: db_17_mha_slave.yaml
+  when: "'db_slave' in group_names"
+
+- name: 2_18) mha manager 설정
+  include_tasks: db_18_mha_manager.yaml
+  when: "'db_nfs' in group_names"

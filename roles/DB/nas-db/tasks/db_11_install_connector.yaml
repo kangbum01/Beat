@@ -14,4 +14,3 @@
   pip:
     name: mysql-connector-python
     executable: pip3
-

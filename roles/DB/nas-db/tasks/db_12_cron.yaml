@@ -15,4 +15,3 @@
     user: "{{ cron_user }}"
     job: "{{ python_path }} {{ script_path }}"
     minute: "*/1"
-

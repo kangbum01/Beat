@@ -1,0 +1,80 @@
+---
+- name: 소스 로그 디렉토리 생성
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0755'
+    recurse: yes
+  loop:
+    - /home/ansible-admin/src
+    - /var/log/mha/app1
+
+- name: /mnt 디렉토리 권한 설정
+  ansible.builtin.file:
+    path: /mnt
+    mode: '0755'
+    recurse: yes
+
+- name: EPEL 저장소 설치
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+
+- name: CRB 저장소 활성화
+  community.general.ini_file:
+    path: /etc/yum.repos.d/centos.repo
+    section: crb
+    option: enabled
+    value: "1"
+    no_extra_spaces: yes
+
+- name: DNF 캐시 업데이트
+  ansible.builtin.dnf:
+    update_cache: yes
+
+- name: MHA 필수 패키지 설치
+  ansible.builtin.dnf:
+    name:
+      - perl
+      - perl-DBI
+      - perl-DBD-MySQL
+      - perl-Config-Tiny
+      - perl-Time-HiRes
+      - perl-Log-Dispatch
+      - perl-Parallel-ForkManager
+      - perl-Module-Install
+      - openssh-clients
+      - git
+      - make
+    state: present
+
+- name: MHA Node 저장소 클론
+  ansible.builtin.git:
+    repo: https://github.com/yoshinorim/mha4mysql-node.git
+    dest: /home/ansible-admin/src/mha4mysql-node
+    update: no
+  become_user: ansible-admin
+
+- name: MHA Node Makefile 존재 확인
+  ansible.builtin.stat:
+    path: /home/ansible-admin/src/mha4mysql-node/Makefile
+  register: makefile_stat
+
+- name: MHA Node Makefile 생성
+  ansible.builtin.shell:
+    cmd: perl Makefile.PL --installdirs site
+    chdir: /home/ansible-admin/src/mha4mysql-node
+  become_user: ansible-admin
+  when: not makefile_stat.stat.exists
+
+- name: MHA Node 빌드
+  ansible.builtin.make:
+    chdir: /home/ansible-admin/src/mha4mysql-node
+  become_user: ansible-admin
+
+- name: MHA Node 설치
+  ansible.builtin.make:
+    chdir: /home/ansible-admin/src/mha4mysql-node
+    target: install

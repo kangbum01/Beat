@@ -12,16 +12,12 @@ import mysql.connector
 # ==============================
 # 0-1) MySQL 연결 설정
 # ==============================
-DB_HOST = "10.4.4.11"
-DB_USER = "backup_admin"
-DB_PASS = "BackupPass1."
-DB_NAME = "nas_backup"
-
+# MySQL 연결
 db_connection = mysql.connector.connect(
-    host=DB_HOST,
-    user=DB_USER,
-    password=DB_PASS,
-    database=DB_NAME
+    host="{{ db_master_ip }}",
+    user="{{ backup_admin_user }}",
+    password="{{ backup_admin_password }}",
+    database="{{ backup_db }}",
 )
 cursor = db_connection.cursor()
 
@@ -63,7 +59,7 @@ def get_pc_folder_from_ip():
 # ==============================
 # 0-2) 전역 경로 및 마스터 IP
 # ==============================
-MASTER_IP = "10.4.4.11"
+MASTER_IP = "10.4.4.12"
 
 # ==============================
 # 0-4) table 표시용 이름 매핑
@@ -316,4 +312,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

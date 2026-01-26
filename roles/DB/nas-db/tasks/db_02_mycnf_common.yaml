@@ -24,4 +24,3 @@
     name: "{{ mysql_service_name }}"
     state: started
     enabled: yes
-

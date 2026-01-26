@@ -1,0 +1,36 @@
+---
+- name: MHA sudo 권한 설정
+  ansible.builtin.copy:
+    content: |
+      ansible-admin ALL=(ALL) NOPASSWD: /usr/sbin/ip
+      ansible-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mysqld
+      ansible-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl start mysqld
+      ansible-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop mysqld
+      ansible-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl status mysqld
+    dest: /etc/sudoers.d/mha-auto
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+
+
+- name: /home/ansible-admin/.my.cnf 파일 생성
+  ansible.builtin.copy:
+    content: |
+      [client]
+      user=mha
+      password=mhapass
+      socket={{ mysql_datadir }}/mysql.sock
+    dest: /home/ansible-admin/.my.cnf
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0600'
+
+- name: MySQL 재시작
+  ansible.builtin.systemd:
+    name: mysqld
+    state: restarted
+
+- name: MySQL 재시작 대기
+  ansible.builtin.pause:
+    seconds: 3

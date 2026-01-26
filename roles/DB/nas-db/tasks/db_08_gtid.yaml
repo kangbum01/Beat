@@ -10,6 +10,9 @@
     STOP SLAVE;
     RESET SLAVE ALL;"
 
+- name: 슬레이브에서 read_only 해제
+  shell: mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "SET GLOBAL read_only = OFF;"
+
 - name: GTID 기반 마스터 정보 설정 및 슬레이브 시작
   shell: |
     mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "
@@ -20,6 +23,9 @@
       MASTER_AUTO_POSITION=1;
     START SLAVE;"
 
+- name: 슬레이브에서 read_only 재설정
+  shell: mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "SET GLOBAL read_only = ON;"
+
 - name: 슬레이브 복제 상태 확인
   shell: mysql -uroot -p'{{ mysql_root_password }}' --socket={{ mysql_datadir }}/mysql.sock -e "SHOW SLAVE STATUS\G"
   register: slave_status
@@ -27,4 +33,3 @@
     'Slave_IO_Running: Yes' not in slave_status.stdout or
     'Slave_SQL_Running: Yes' not in slave_status.stdout
   changed_when: false
-
