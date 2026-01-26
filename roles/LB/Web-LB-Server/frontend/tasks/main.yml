@@ -1,14 +1,14 @@
 ---
-- name: Install Nginx
-  package:
-    name: nginx
-    state: present
+# - name: Install Nginx
+#   package:
+#     name: nginx
+#     state: present
 
-- name: Create Web Root
-  file:
-    path: /usr/share/nginx/html
-    state: directory
-    mode: '0755'
+# - name: Create Web Root
+#   file:
+#     path: /usr/share/nginx/html
+#     state: directory
+#     mode: '0755'
 
 - name: Deploy High Speed Visualizer HTML
   template:
@@ -16,29 +16,29 @@
     dest: /usr/share/nginx/html/index.html
     mode: '0644'
 
-- name: Configure Nginx Proxy
-  template:
-    src: nginx.conf.j2
-    dest: /etc/nginx/nginx.conf
-  notify: Restart Nginx
+# - name: Configure Nginx Proxy
+#   template:
+#     src: nginx.conf.j2
+#     dest: /etc/nginx/nginx.conf
+#   notify: Restart Nginx
 
-- name: Start Nginx
-  service:
-    name: nginx
-    state: started
-    enabled: yes
+# - name: Start Nginx
+#   service:
+#     name: nginx
+#     state: started
+#     enabled: yes
 
-# ========================================================
-# [추가됨] 방화벽 설정 (Iptables)
-# ========================================================
-- name: Open Port 80 (Web Server)
-  iptables:
-    chain: INPUT
-    protocol: tcp
-    destination_port: 80
-    jump: ACCEPT
-    action: insert
-    rule_num: 1
+# # ========================================================
+# # [추가됨] 방화벽 설정 (Iptables)
+# # ========================================================
+# - name: Open Port 80 (Web Server)
+#   iptables:
+#     chain: INPUT
+#     protocol: tcp
+#     destination_port: 80
+#     jump: ACCEPT
+#     action: insert
+#     rule_num: 1
 
-- name: Save iptables rules
-  shell: service iptables save
+# - name: Save iptables rules
+#   shell: service iptables save

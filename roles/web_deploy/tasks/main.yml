@@ -8,7 +8,7 @@
     mode: '2755'
   become: true
 
-- name: "2. 웹 콘텐츠 복사 (Jenkins Workspace -> Web Server)"
+- name: "2. 웹 콘텐츠 복사 (Jenkins Workspace -> LB Server)"
   ansible.builtin.copy:
     # 젠킨스 컨테이너의 호스트 마운트 경로를 참조합니다.
     src: "{{ src_path | default('./web/') }}"

@@ -21,7 +21,7 @@ scrape_configs:
   - job_name: 'medw-web-uptime'
     metrics_path: /probe
     params:
-      module: [{{ blackbox_module | default('http_2xx') }}]
+      module: [http_2xx]
     static_configs:
       - targets:
           - 'http://{{ load_balancer_external_ip }}'
@@ -31,7 +31,9 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
+      # [핵심] instance 라벨에서 http:// 및 포트 번호를 제거하여 대시보드와 맞춤
       - source_labels: [__param_target]
+        regex: (?:https?://)?([^:/]+).*
         target_label: instance
       - target_label: __address__
         replacement: '{{ monitoring_server_ip }}:{{ blackbox_exporter_port | default(9115) }}'

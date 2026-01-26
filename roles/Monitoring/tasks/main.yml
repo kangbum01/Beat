@@ -1,188 +1,170 @@
 ---
-- name: "MEDW 통합 모니터링 시스템 구축 및 대시보드 자동화"
-  hosts: all
-  become: yes
+# [1] 시스템 유저 및 필수 패키지
+- name: 서비스 전용 유저 생성
+  user:
+    name: "{{ item }}"
+    system: yes
+    shell: /sbin/nologin
+  loop:
+    - "{{ prometheus_user }}"
+    - "{{ loki_user }}"
 
-  tasks:
-    #####################################################################
-    # [공통] 시스템 유저 및 필수 패키지
-    #####################################################################
-    - name: Prometheus 시스템 유저 생성
-      user:
-        name: "{{ prometheus_user }}"
-        system: yes
-        shell: /sbin/nologin
+- name: 필수 패키지 설치
+  dnf:
+    name: [wget, tar, unzip, python3-libsemanage, net-tools, iptables-services]
+    state: present
 
-    - name: 필수 패키지 설치
+# [2] 바이너리 다운로드 및 배치
+- name: 바이너리 파일 다운로드 및 배치
+  shell: |
+    mkdir -p /tmp/monitoring_setup && cd /tmp/monitoring_setup
+    
+    # Node Exporter
+    wget -q https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_ver }}/node_exporter-{{ node_exporter_ver }}.linux-amd64.tar.gz
+    tar -xzf node_exporter-*.tar.gz && cp -f node_exporter-*/node_exporter /usr/local/bin/
+
+    # Promtail
+    wget -q https://github.com/grafana/loki/releases/download/v{{ promtail_ver }}/promtail-linux-amd64.zip
+    unzip -o promtail-linux-amd64.zip && mv -f promtail-linux-amd64 /usr/local/bin/promtail
+
+    # 아래 조건문을 인벤토리 호스트네임이나 IP를 직접 보게 수정
+    {% if inventory_hostname == '10.4.5.10' or inventory_hostname == 'Monitoring' or inventory_hostname == 'server_05' %}
+    # Prometheus
+    wget -q https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_ver }}/prometheus-{{ prometheus_ver }}.linux-amd64.tar.gz
+    tar -xzf prometheus-*.tar.gz && cp -f prometheus-*/prometheus /usr/local/bin/
+
+    # Loki
+    wget -q https://github.com/grafana/loki/releases/download/v{{ loki_ver }}/loki-linux-amd64.zip
+    unzip -o loki-linux-amd64.zip && mv -f loki-linux-amd64 /usr/local/bin/loki
+
+    # MinIO
+    wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio
+
+    # Blackbox
+    wget -q https://github.com/prometheus/blackbox_exporter/releases/download/v{{ blackbox_exporter_ver }}/blackbox_exporter-{{ blackbox_exporter_ver }}.linux-amd64.tar.gz
+    tar -xzf blackbox_exporter-*.tar.gz && cp -f blackbox_exporter-*/blackbox_exporter /usr/local/bin/
+    {% endif %}
+
+    chmod +x /usr/local/bin/*
+  args:
+    executable: /bin/bash
+
+# [3] 디렉토리 및 서비스 등록
+- name: 모니터링 서버 전용 디렉토리 구성
+  # 인벤토리에 선언된 이름이 무엇이든 10.4.5.10이면 실행되도록 강제
+  when: inventory_hostname == '10.4.5.10' or inventory_hostname == 'Monitoring' or inventory_hostname == 'server_05'
+  block:
+    - name: Grafana 설치
       dnf:
-        name: [wget, tar, unzip, python3-libsemanage, net-tools, iptables-services]
+        name: "https://dl.grafana.com/oss/release/grafana-{{ grafana_ver }}-1.x86_64.rpm"
         state: present
+        disable_gpg_check: yes
 
-    #####################################################################
-    # [섹션 1] 에이전트 설치 (모든 타겟 호스트)
-    #####################################################################
-    - name: 에이전트 바이너리 다운로드 및 배치
-      block:
-        - name: 에이전트 다운로드
-          unarchive:
-            src: "https://github.com/{{ item.url }}"
-            dest: /tmp
-            remote_src: yes
-          loop:
-            - { url: "prometheus/node_exporter/releases/download/v{{ node_exporter_ver }}/node_exporter-{{ node_exporter_ver }}.linux-amd64.tar.gz" }
-            - { url: "grafana/loki/releases/download/v{{ promtail_ver }}/promtail-linux-amd64.zip" }
+    - name: 디렉토리 생성 및 소유권 부여
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      loop:
+        - { path: /etc/prometheus, owner: root, group: root }
+        - { path: /var/lib/prometheus, owner: "{{ prometheus_user }}", group: "{{ prometheus_user }}" }
+        - { path: /etc/loki, owner: root, group: root }
+        - { path: /var/lib/loki, owner: "{{ loki_user }}", group: "{{ loki_user }}" }
+        - { path: /etc/blackbox_exporter, owner: root, group: root }
+        - { path: /var/lib/grafana/dashboards, owner: grafana, group: grafana }
+        - { path: "{{ minio_data_path }}", owner: "{{ ansible_user }}", group: "{{ ansible_user }}" }
 
-        - name: 바이너리 이동
-          copy:
-            src: "{{ item.src }}"
-            dest: "/usr/local/bin/{{ item.dest }}"
-            mode: '0755'
-            owner: "{{ ansible_user }}"
-            group: "{{ ansible_user }}"
-            remote_src: yes
-          loop:
-            - { src: "/tmp/node_exporter-{{ node_exporter_ver }}.linux-amd64/node_exporter", dest: "node_exporter" }
-            - { src: "/tmp/promtail-linux-amd64", dest: "promtail" }
-
-    #####################################################################
-    # [섹션 2] 모니터링 메인 서버 스택 구축 (Monitoring Group 전용)
-    #####################################################################
-    - name: 모니터링 메인 서버 구성
-      when: "'monitoring' in group_names"
-      block:
-        - name: Grafana RPM 설치
-          dnf:
-            name: "https://dl.grafana.com/oss/release/grafana-{{ grafana_ver }}-1.x86_64.rpm"
-            state: present
-            disable_gpg_check: yes
-
-        - name: 시스템 디렉터리 생성
-          file:
-            path: "{{ item.path }}"
-            state: directory
-            owner: "{{ item.owner | default('root') }}"
-            mode: '0755'
-          loop:
-            - { path: /etc/prometheus }
-            - { path: /var/lib/prometheus, owner: "{{ prometheus_user }}" }
-            - { path: /etc/grafana/provisioning/datasources }
-            - { path: /etc/grafana/provisioning/dashboards }
-            - { path: "{{ minio_data_path }}", owner: "{{ ansible_user }}" }
-
-        - name: 메인 구성 요소 다운로드
-          get_url:
-            url: "{{ item.url }}"
-            dest: "/tmp/{{ item.url | split('/') | last }}"
-          loop:
-            - { url: "https://dl.min.io/server/minio/release/linux-amd64/minio" }
-            - { url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_ver }}/prometheus-{{ prometheus_ver }}.linux-amd64.tar.gz" }
-            - { url: "https://github.com/grafana/loki/releases/download/v{{ loki_ver }}/loki-linux-amd64.zip" }
-            - { url: "https://github.com/prometheus/blackbox_exporter/releases/download/v{{ blackbox_exporter_ver }}/blackbox_exporter-{{ blackbox_exporter_ver }}.linux-amd64.tar.gz" }
-
-        - name: 메인 바이너리 압축 해제 및 배치
-          shell: |
-            tar -xzf /tmp/prometheus-*.tar.gz -C /tmp
-            cp /tmp/prometheus-*/prometheus /usr/local/bin/
-            unzip -o /tmp/loki-linux-amd64.zip -d /usr/local/bin/
-            mv -f /usr/local/bin/loki-linux-amd64 /usr/local/bin/loki
-            cp /tmp/minio /usr/local/bin/minio
-            tar -xzf /tmp/blackbox_exporter-*.tar.gz -C /tmp
-            cp /tmp/blackbox_exporter-*/blackbox_exporter /usr/local/bin/
-            chmod +x /usr/local/bin/{prometheus,loki,minio,blackbox_exporter}
-
-    #####################################################################
-    # [섹션 3] 설정 파일 배포 및 방화벽 (iptables/firewalld 혼합)
-    #####################################################################
-    - name: 템플릿 설정 파일 배포 (에이전트)
+# [4] 설정 파일 및 대시보드 배포
+- name: 설정 및 시각화 구성
+  when: inventory_hostname in ['10.4.5.10', 'Monitoring', 'server_05']
+  block:
+    - name: 템플릿 배포
       template:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
       loop:
-        - { src: node_exporter.service.j2, dest: /etc/systemd/system/node_exporter.service }
-        - { src: promtail.service.j2, dest: /etc/systemd/system/promtail.service }
-        - { src: promtail-config.yml.j2, dest: /etc/promtail-config.yml }
-      when: "'targets' in group_names"
-
-    - name: 템플릿 설정 파일 배포 (모니터링 서버)
-      template:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
-      loop:
-        - { src: prometheus.service.j2, dest: /etc/systemd/system/prometheus.service }
         - { src: prometheus.yml.j2, dest: /etc/prometheus/prometheus.yml }
-        - { src: loki.service.j2, dest: /etc/systemd/system/loki.service }
+        - { src: prometheus-datasource.yml.j2, dest: /etc/grafana/provisioning/datasources/prometheus.yaml }
         - { src: loki-config.yml.j2, dest: /etc/loki-config.yaml }
-        - { src: blackbox_exporter.service.j2, dest: /etc/systemd/system/blackbox_exporter.service }
-        - { src: minio.service.j2, dest: /etc/systemd/system/minio.service }
         - { src: loki-datasource.yml.j2, dest: /etc/grafana/provisioning/datasources/loki.yaml }
         - { src: grafana-dashboards.yml.j2, dest: /etc/grafana/provisioning/dashboards/medw.yaml }
-      when: "'monitoring' in group_names"
+        - { src: node_exporter.service.j2, dest: /etc/systemd/system/node_exporter.service }
+        - { src: promtail.service.j2, dest: /etc/systemd/system/promtail.service }
+        - { src: prometheus.service.j2, dest: /etc/systemd/system/prometheus.service }
+        - { src: loki.service.j2, dest: /etc/systemd/system/loki.service }
+        - { src: minio.service.j2, dest: /etc/systemd/system/minio.service }
+        - { src: blackbox_exporter.service.j2, dest: /etc/systemd/system/blackbox_exporter.service }
 
-    - name: Web/LB 서버 iptables 설정 (기존 환경 유지)
-      when: "'web' in group_names or 'lb' in group_names"
-      ansible.builtin.iptables:
-        chain: INPUT
-        protocol: tcp
-        destination_port: "{{ item }}"
-        jump: ACCEPT
-        action: insert
-      loop: ['9100', '9080']
-
-    - name: 모니터링 서버 FirewallD 설정 (포트 개방)
-      when: "'monitoring' in group_names"
-      firewalld:
-        port: "{{ item }}/tcp"
-        permanent: yes
-        state: enabled
-        immediate: yes
-      loop: ['3000', '3100', '9000', '9001', '9090', '9115']
-
-    #####################################################################
-    # [섹션 4] 대시보드 JSON 자동 배포
-    #####################################################################
-    - name: 대시보드 JSON 파일 복사
-      when: "'monitoring' in group_names"
-      copy:
-        src: "files/{{ item }}"
-        dest: "/var/lib/grafana/dashboards/{{ item }}"
+    # 1️⃣ Grafana 대시보드 다운로드
+    - name: Grafana 대시보드 다운로드
+      get_url:
+        url: "https://grafana.com/api/dashboards/{{ item.id }}/revisions/{{ item.rev }}/download"
+        dest: "/var/lib/grafana/dashboards/{{ item.filename }}.json"
         owner: grafana
         group: grafana
+        mode: '0644'
       loop:
-        - infra-nodes-dashboard.json
-        - web-uptime-dashboard.json
-        - log-analyzer-dashboard.json
-      notify: restart grafana
+        - { id: 1860, rev: 37, filename: '1_전체_서버_확인' }          # Node Exporter
+        - { id: 7587, rev: 1,  filename: '2_WEB_LB_UPTIME_Blackbox' } # Blackbox
+        - { id: 13639, rev: 2, filename: '3_Loki_오류_로그' }
 
-    #####################################################################
-    # [섹션 5] 서비스 기동 및 MinIO 초기화
-    #####################################################################
-    - name: 모든 서비스 시작 및 활성화
-      systemd:
-        name: "{{ item.name }}"
-        state: restarted
-        enabled: yes
-        daemon_reload: yes
+    # 2️⃣ Prometheus 데이터소스 변수 치환 (Node + Blackbox 공통)
+    - name: Grafana Prometheus 데이터소스 변수 치환
+      replace:
+        path: "/var/lib/grafana/dashboards/{{ item }}.json"
+        regexp: '\${DS_PROMETHEUS[^}]*}'
+        replace: 'Prometheus'
       loop:
-        - { name: node_exporter, mon_only: false }
-        - { name: promtail, mon_only: false }
-        - { name: minio, mon_only: true }
-        - { name: loki, mon_only: true }
-        - { name: prometheus, mon_only: true }
-        - { name: grafana-server, mon_only: true }
-        - { name: blackbox_exporter, mon_only: true }
-      when: "not item.mon_only or 'monitoring' in group_names"
+        - '1_전체_서버_확인'
+        - '2_WEB_LB_UPTIME_Blackbox'
 
-    - name: MinIO mc 설치 및 버킷 생성
-      when: "'monitoring' in group_names"
-      shell: |
-        wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
-        chmod +x /usr/local/bin/mc
-        /usr/local/bin/mc alias set myminio http://127.0.0.1:9000 {{ minio_root_user }} {{ minio_root_password }}
-        /usr/local/bin/mc mb myminio/{{ loki_s3_bucket }} --ignore-existing
+    # 3️⃣ Loki 데이터소스 변수 치환
+    - name: Grafana Loki 데이터소스 변수 치환
+      replace:
+        path: "/var/lib/grafana/dashboards/3_Loki_오류_로그.json"
+        regexp: '\${DS_LOKI[^}]*}'
+        replace: 'Loki'
+
+    # 4️⃣ Grafana 필수 플러그인 설치
+    - name: Grafana 필수 플러그인 설치
+      shell: "grafana-cli plugins install {{ item }}"
+      loop:
+        - grafana-piechart-panel
       ignore_errors: yes
 
-  handlers:
-    - name: restart grafana
-      systemd:
-        name: grafana-server
-        state: restarted
+
+
+# [5] 서비스 기동 (자동 재시작 포함)
+- name: 모든 서비스 시작 및 활성화
+  systemd:
+    name: "{{ item.name }}"
+    state: restarted  # <--- 이 설정으로 인해 자동으로 재시작됩니다.
+    enabled: yes
+    daemon_reload: yes
+  loop:
+    - { name: node_exporter, mon_only: false }
+    - { name: promtail, mon_only: false }
+    - { name: minio, mon_only: true }
+    - { name: loki, mon_only: true }
+    - { name: prometheus, mon_only: true }
+    - { name: grafana-server, mon_only: true } # 플러그인 설치 후 여기서 재시작됨
+    - { name: blackbox_exporter, mon_only: true }
+  when: >
+    (not item.mon_only) or 
+    (inventory_hostname in ['10.4.5.10', 'Monitoring', 'server_05'])
+
+# [6] MinIO 버킷 생성 (준비 시간 추가)
+- name: MinIO가 완전히 가동될 때까지 대기
+  when: inventory_hostname == '10.4.5.10' or inventory_hostname == 'Monitoring' or inventory_hostname == 'server_05'
+  pause:
+    seconds: 15  # MinIO가 디스크 포맷/힐링을 마칠 때까지 약 20초 정도 기다립니다.
+
+- name: MinIO 버킷 생성
+  when: inventory_hostname == '10.4.5.10' or inventory_hostname == 'Monitoring' or inventory_hostname == 'server_05'
+  shell: |
+    /usr/local/bin/mc alias set myminio http://127.0.0.1:9000 {{ minio_root_user }} {{ minio_root_password }}
+    /usr/local/bin/mc mb myminio/{{ loki_s3_bucket }} --ignore-existing
+  ignore_errors: yes
+  

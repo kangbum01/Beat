@@ -3,8 +3,8 @@ datasources:
   - name: Loki
     type: loki
     access: proxy
-    url: http://localhost:{{ loki_port }}
+    url: http://localhost:3100
     jsonData:
       httpHeaderName1: "X-Scope-OrgID"
     secureJsonData:
-      httpHeaderValue1: "monitoring"
+      httpHeaderValue1: "monitoring"  # <--- Promtail의 tenant_id와 일치

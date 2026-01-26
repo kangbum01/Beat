@@ -4,7 +4,7 @@ prometheus_port: 9090
 loki_port: 3100
 promtail_port: 9080
 blackbox_exporter_port: 9115
-node_exporter_port: 9100
+
 minio_port: 9000
 minio_console_port: 9001  
 

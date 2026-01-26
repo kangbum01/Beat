@@ -8,8 +8,8 @@
 #   tags: [common, sync_time]
 
 # 완료
-# - import_playbook: nas_db.yaml
-#   tags: [db, nas_db]
+#- import_playbook: nas_db.yaml
+#  tags: [db, nas_db]
 
 # 완료
 # - import_playbook: cicd.yaml
@@ -24,7 +24,7 @@
 #   tags: [lb]
 
 
-- import_playbook: monitoring.yaml
+#- import_playbook: monitoring.yaml
 
 # ==============================================================================
 # [ HISTORY & TROUBLESHOOTING ]

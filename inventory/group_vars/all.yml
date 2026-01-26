@@ -19,6 +19,8 @@ prometheus_user: "prometheus"
 loki_user: "loki"         
 promtail_user: "root"         
 node_exporter_user: "root"    
+node_exporter_port: 9100
+prometheus_datasource_uid: Prometheus
 
 # --- 패키지 버전 ---
 node_exporter_ver: "1.7.0"
